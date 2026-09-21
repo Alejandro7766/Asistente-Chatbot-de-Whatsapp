@@ -1,0 +1,399 @@
+{
+  "name": "Recordatorios de Citas 24h — Demo Clinicas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "88e50066-3f9c-401c-9f07-07a19c7db719",
+      "name": "⏰ Cada hora — Revisa citas próximas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -5920,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "bd64680182e20056af184b1e4c074410f78201bb01e0b0c5939fbd46ed31a76c@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Calendario Alejandro"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "2026-07-17T00:31:43.822+02:00",
+          "timeMax": "=2026-07-20T23:59:59+02:00"
+        }
+      },
+      "id": "c8ca6c57-b502-40f4-b8d2-5d482d8790e4",
+      "name": "📅 Google Calendar — Citas en +23/+25h",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -5696,
+        -368
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "5EHsafKLNVYF8aXV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// El evento se creó con summary 'Cita: {nombre} - {tratamiento}'\n// y description 'Tel: {telefono} | Reservado vía WhatsApp bot'\nconst item = $json;\nconst summary = item.summary || '';\nconst description = item.description || '';\nconst partesSummary = summary.replace(/^Cita:\\s*/, '').split(' - ');\nconst nombre = partesSummary[0] ? partesSummary[0].trim() : 'paciente';\nconst tratamiento = partesSummary[1] ? partesSummary[1].trim() : '';\nconst telMatch = description.match(/Tel:\\s*([^|]+)/);\nlet telefono = telMatch ? telMatch[1].trim() : null;\n// Normaliza a formato E.164 con prefijo España\nif (telefono) {\n  telefono = telefono.replace(/[\\s\\-()]/g, ''); // quita espacios, guiones, paréntesis\n  if (telefono.startsWith('+')) {\n    telefono = telefono.substring(1);\n  } else if (telefono.startsWith('34') && telefono.length === 11) {\n    // ya tiene el 34 delante, no tocar\n  } else if (!telefono.startsWith('34')) {\n    telefono = '34' + telefono;\n  }\n}\nconst attendee = (item.attendees || [])[0];\nconst start = item.start && (item.start.dateTime || item.start.date);\nreturn [{ json: {\n  event_id: item.id,\n  nombre: nombre,\n  telefono: telefono,\n  tratamiento: tratamiento,\n  email: attendee ? attendee.email : null,\n  fecha_hora: start\n} }];"
+      },
+      "id": "cf54a097-1be8-4e12-89a2-4194b86a7876",
+      "name": "🔧 Code — Extrae datos de la cita",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5472,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0",
+          "mode": "list",
+          "cachedResultName": "Historial",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 815960164,
+          "mode": "list",
+          "cachedResultName": "RecordatoriosEnviados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0/edit#gid=815960164"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "event_id",
+              "lookupValue": "={{ $('🔧 Code — Extrae datos de la cita').item.json.event_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b2432fe-67e0-4dd7-9761-682a9f979314",
+      "name": "📊 Sheets — ¿Ya se envió?",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -5248,
+        -368
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TZHSWYgb1oQEIYtk",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Requiere una pestaña 'RecordatoriosEnviados' con columnas event_id, telefono, enviado_en en el mismo Sheet del historial."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check_enviado",
+              "leftValue": "={{ $json.event_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7c45e2b6-71c0-49f0-91b0-69708ede5e57",
+      "name": "🔀 IF — ¿Ya se envió recordatorio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -5024,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/1179285025271722/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{ $('🔧 Code — Extrae datos de la cita').item.json.telefono }}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"recordatorio_cita_24h\",\n   \"language\": { \"code\": \"es_ES\" },\n    \"components\": [{\n      \"type\": \"body\",\n      \"parameters\": [\n        { \"type\": \"text\", \"parameter_name\": \"nombre_paciente\", \"text\": \"{{ $('🔧 Code — Extrae datos de la cita').item.json.nombre }}\" },\n        { \"type\": \"text\", \"parameter_name\": \"fecha_cita\", \"text\": \"{{ DateTime.fromISO($('🔧 Code — Extrae datos de la cita').item.json.fecha_hora).toFormat('dd/MM') }}\" },\n        { \"type\": \"text\", \"parameter_name\": \"hora_cita\", \"text\": \"{{ DateTime.fromISO($('🔧 Code — Extrae datos de la cita').item.json.fecha_hora).toFormat('HH:mm') }}\" },\n        { \"type\": \"text\", \"parameter_name\": \"tratamiento\", \"text\": \"{{ $('🔧 Code — Extrae datos de la cita').item.json.tratamiento }}\" }\n      ]\n    }]\n  }\n}",
+        "options": {}
+      },
+      "id": "4e41e0d2-b74b-470e-a38b-1844ae61393a",
+      "name": "📱 Meta API — Envía plantilla recordatorio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4800,
+        -496
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LGOHiHMBErXiHkF3",
+          "name": "Header Auth account"
+        }
+      },
+      "notes": "Requiere la plantilla 'recordatorio_cita_24h' APROBADA en Meta antes de activar este nodo. YA APROBADA ✅. Phone Number ID = número de demo (1118569898015751)."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('🔧 Code — Extrae datos de la cita').item.json.email }}",
+        "subject": "Recordatorio: tu cita mañana en Clínica Sarabia",
+        "emailType": "text",
+        "message": "=Hola {{ $('🔧 Code — Extrae datos de la cita').item.json.nombre }},\n\nTe recordamos tu cita mañana {{ DateTime.fromISO($('🔧 Code — Extrae datos de la cita').item.json.fecha_hora).toFormat('dd/MM/yyyy') }} a las {{ DateTime.fromISO($('🔧 Code — Extrae datos de la cita').item.json.fecha_hora).toFormat('HH:mm') }} para {{ $('🔧 Code — Extrae datos de la cita').item.json.tratamiento }}.\n\nDirección: Calle Ercilla, 42 (bajo), Bilbao.\nSi necesitas cambiarla, llámanos al 944 151 363.\n\nUn saludo,\nClínica Sarabia",
+        "options": {}
+      },
+      "id": "1014f813-f86f-4b98-a2fc-a62a2cc67057",
+      "name": "📧 Gmail — Envía recordatorio email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -4800,
+        -288
+      ],
+      "webhookId": "a3ca4c01-e364-483a-873b-f0ac893d4d2e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "4cMGXHz3aXb5tQTa",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "973958e3-9ebd-49f9-be85-026a6a1b952f",
+      "name": "🔗 Merge — Envíos completados",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -4576,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "RecordatoriosEnviados",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_id": "={{ $('🔧 Code — Extrae datos de la cita').item.json.event_id }}",
+            "telefono": "={{ $('🔧 Code — Extrae datos de la cita').item.json.telefono }}",
+            "enviado_en": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_id",
+              "displayName": "event_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "enviado_en",
+              "displayName": "enviado_en",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d739828f-465c-4c4b-b0bf-9cd11072c663",
+      "name": "📊 Sheets — Marca como enviado",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -4352,
+        -368
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TZHSWYgb1oQEIYtk",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "⏰ Cada hora — Revisa citas próximas": {
+      "main": [
+        [
+          {
+            "node": "📅 Google Calendar — Citas en +23/+25h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Google Calendar — Citas en +23/+25h": {
+      "main": [
+        [
+          {
+            "node": "🔧 Code — Extrae datos de la cita",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Code — Extrae datos de la cita": {
+      "main": [
+        [
+          {
+            "node": "📊 Sheets — ¿Ya se envió?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Sheets — ¿Ya se envió?": {
+      "main": [
+        [
+          {
+            "node": "🔀 IF — ¿Ya se envió recordatorio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 IF — ¿Ya se envió recordatorio?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "📧 Gmail — Envía recordatorio email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📱 Meta API — Envía plantilla recordatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 Meta API — Envía plantilla recordatorio": {
+      "main": [
+        [
+          {
+            "node": "🔗 Merge — Envíos completados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Gmail — Envía recordatorio email": {
+      "main": [
+        [
+          {
+            "node": "🔗 Merge — Envíos completados",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔗 Merge — Envíos completados": {
+      "main": [
+        [
+          {
+            "node": "📊 Sheets — Marca como enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "28563648-5f4f-48ea-babe-5811832294d6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "49294b231365eabe54104da74cda5e810f41fc6d7b53a6f711b156124f05c7c8"
+  },
+  "id": "gMiJxJ9yIqD6Wh0M",
+  "tags": []
+}
