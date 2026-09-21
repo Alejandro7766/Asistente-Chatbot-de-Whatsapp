@@ -1,0 +1,917 @@
+{
+  "name": "Asistente Demo Clinicas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-sarabia-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7b005f76-3450-451f-a632-74e7c20d0ab9",
+      "name": "📨 Webhook — Recibe mensaje WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2944,
+        464
+      ],
+      "webhookId": "sarabia-meta-001"
+    },
+    {
+      "parameters": {
+        "path": "whatsapp-sarabia-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "175d97c3-f07c-48fd-833c-1d984c5b00ca",
+      "name": "✅ Webhook — Verificación Meta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2944,
+        672
+      ],
+      "webhookId": "sarabia-meta-verify"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "7a99589c-058f-4832-98af-f016c726aee0",
+      "name": "✅ Responde challenge de Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -2736,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check_message_type",
+              "leftValue": "={{ $json.body.entry[0].changes[0].value.messages[0].type }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8f82c69e-8bd7-485c-97e0-d518382ffee4",
+      "name": "🔍 Filtro — ¿Es mensaje de texto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2736,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "f487d866-efe2-4360-a992-79661344adf9",
+      "name": "✅ Responde 200 (no es texto)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign_phone",
+              "name": "telefono",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].from }}",
+              "type": "string"
+            },
+            {
+              "id": "assign_message",
+              "name": "mensaje_usuario",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].text.body }}",
+              "type": "string"
+            },
+            {
+              "id": "assign_msg_id",
+              "name": "message_id",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].id }}",
+              "type": "string"
+            },
+            {
+              "id": "assign_timestamp",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c39a4761-453e-4e4c-9076-008690238b1d",
+      "name": "📋 Set — Extrae datos del mensaje",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2512,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "48d008d7-d9e2-4450-a7fa-02ded730d80c",
+      "name": "✅ Responde 200 OK a Meta (inmediato)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -2288,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst mensajeActual = $('📋 Set — Extrae datos del mensaje').item.json.mensaje_usuario;\nconst telefono = $('📋 Set — Extrae datos del mensaje').item.json.telefono;\n\nlet messages = [];\n\nif (items.length > 0 && items[0].json.telefono) {\n  const historial = items.slice(-30);\n  for (const item of historial) {\n    const rol = item.json.rol;\n    const contenido = item.json.contenido;\n    if (rol && contenido !== undefined && contenido !== null && contenido !== '') {\n      messages.push({ role: String(rol), content: String(contenido) });\n    }\n  }\n}\n\nmessages.push({ role: \"user\", content: String(mensajeActual) });\n\nreturn [{ json: { telefono: telefono, mensaje_usuario: mensajeActual, messages: messages } }];"
+      },
+      "id": "f77b6fad-5f54-46de-bfa3-f74cbb0fa72d",
+      "name": "🔧 Code — Construye historial para Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1984,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-haiku-4-5\",\n  \"max_tokens\": 1024,\n  \"system\": \"FECHA Y HORA ACTUAL: {{ $now.setZone('Europe/Madrid').toFormat('dd/MM/yyyy HH:mm') }} (hora de Madrid, formato 24h).\\n\\nCALENDARIO DE REFERENCIA — no calcules fechas relativas tú mismo bajo ninguna circunstancia, busca siempre la fila correspondiente en esta lista (el primer elemento es siempre HOY):\\n{{ Array.from({length: 21}, (_, i) => { const d = $now.setZone('Europe/Madrid').plus({days: i}); const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo']; return (i === 0 ? 'HOY -> ' : '') + dias[d.weekday-1] + ' ' + d.toFormat('dd/MM/yyyy'); }).join('\\\\n') }}\\n\\nREGLAS PARA INTERPRETAR FECHAS:\\n- Si el paciente da una fecha CONCRETA con día y mes (ej. \\\"15 de agosto\\\", \\\"3 de septiembre\\\"), simplemente formatéala directamente (no necesitas el calendario de arriba para esto, no hay ningún cálculo que hacer).\\n- Si el paciente da una fecha RELATIVA (ej. \\\"el lunes\\\", \\\"mañana\\\", \\\"la semana que viene\\\", \\\"este viernes\\\"), búscala en el calendario de referencia de arriba. NUNCA la calcules mentalmente.\\n- Si la fecha relativa que pide cae fuera de ese calendario (por ejemplo \\\"dentro de un mes\\\", \\\"el mes que viene\\\"), NO intentes calcularla: pídele amablemente que te diga el día y mes exactos en vez de una referencia relativa tan lejana.\\n- Si el paciente pregunta por disponibilidad HOY o dice \\\"ahora\\\", compara la HORA ACTUAL de arriba con el horario de apertura (Lunes-Jueves 10:00-20:00, Viernes 10:00-14:00). Si ya ha pasado la hora de cierre de hoy, dile que la clínica ya ha cerrado por hoy y ofrécele el siguiente día disponible en vez de decir que \\\"aún está abierta\\\".\\n\\nEres el asistente virtual de Clínica Demo, una clínica médico-estética de referencia en Bilbao con más de 20 años de experiencia, dirigida por la Dra. Rosa Sarabia y el Dr. Daniel Sarabia.\\n\\nTu función es atender a los pacientes por WhatsApp: resolver sus dudas, informarles sobre los tratamientos y AGENDARLES una cita directamente cuando quieran.\\n\\nPERSONALIDAD Y TONO:\\n- Cálido, cercano y profesional.\\n- Nunca uses lenguaje demasiado técnico sin explicarlo.\\n- Respuestas cortas y claras, máximo 3-4 líneas.\\n- Usa emojis con moderación (1-2 por mensaje).\\n- No hagas listas largas salvo que el usuario las pida explícitamente.\\n\\nINFORMACIÓN DE LA CLÍNICA:\\nNombre: Clínica Demo\\nDirección: Calle Ercilla, 42 (bajo), Bilbao\\nTeléfono: 944 151 363\\nHorario: Lunes a jueves 10:00-20:00, Viernes 10:00-14:00. Cerrado sábados y domingos — si el paciente propone un sábado o domingo o una hora especifica fuera del horario, dile amablemente que ese día está cerrado y pídele otro día u hora, antes de seguir preguntando por la hora.\\nPrimera consulta: GRATUITA\\n\\nSERVICIOS:\\n- Botox, ácido hialurónico, hilos tensores, Morpheus8, Hydrafacial\\n- Blefaroplastia, rinoplastia, liplift\\n- Evolve Transform, depilación láser, BodyTite\\n- Aumento de pecho, abdominoplastia, liposucción\\n- Método PronoKal (pérdida de peso)\\n\\nFLUJO DE CONVERSACIÓN:\\n- Saludo simple (Hola, Buenos días, etc.): responde SIEMPRE con '¡Hola! 👋 Soy el asistente de Clínica Demo. ¿En qué puedo ayudarte?' Sin añadir nada más.\\n- Si pregunta por un tratamiento: explícalo brevemente y ofrece la consulta gratuita.\\n- Si pide cita: recoge estos 5 datos, uno a uno de forma natural (no los pidas todos de golpe en una lista): nombre completo, tratamiento de interés, email, fecha deseada (día concreto) y hora deseada.\\n- Sigue las REGLAS PARA INTERPRETAR FECHAS de arriba para resolver cualquier fecha que te dé el paciente.\\n- Una vez tengas la fecha resuelta (ya sea porque te la dieron concreta, o porque la buscaste en el calendario), SIEMPRE confírmasela de vuelta al paciente con el día de la semana y la fecha completa antes de seguir, por ejemplo: \\\"Perfecto, ¿te refieres al martes 15 de julio?\\\" Espera su confirmación explícita (sí, correcto, etc.) antes de continuar con el siguiente dato. Si el paciente corrige la fecha, vuelve a resolverla y confirma de nuevo hasta que quede clara.\\n- En cuanto tengas los 5 datos confirmados por el paciente (incluida la fecha ya confirmada explícitamente como se indica arriba), escribe un mensaje breve tipo \\\"¡Perfecto! Voy a comprobar disponibilidad y te confirmo en un momento 😊\\\" y, justo después, en una línea nueva, añade EXACTAMENTE esto (con los datos reales, JSON válido con comillas dobles):\\nCITA_JSON:{\\\"nombre\\\":\\\"...\\\",\\\"tratamiento\\\":\\\"...\\\",\\\"email\\\":\\\"...\\\",\\\"fecha\\\":\\\"YYYY-MM-DD\\\",\\\"hora\\\":\\\"HH:MM\\\"}\\n  Esa línea es un marcador técnico interno: el paciente NUNCA la ve, nuestro sistema la detecta y la sustituye automáticamente por la confirmación real (o por horarios alternativos si ese hueco ya está ocupado). No la escribas si todavía falta algún dato, y no la escribas en ningún otro momento de la conversación.\\n- Nunca digas tú mismo que la cita está confirmada: eso lo confirma el sistema después de comprobar el calendario.\\n- Si pregunta precios: indica que depende de cada caso y ofrece la consulta gratuita sin compromiso.\\n- Si pide hablar con una persona / dice que el bot no le sirve: discúlpate brevemente y deriva al 944 151 363 de inmediato, sin insistir en agendar.\\n- Si no sabes la respuesta: deriva amablemente al 944 151 363.\\n\\nREGLAS ABSOLUTAS:\\n- Nunca des diagnósticos médicos.\\n- Nunca inventes precios concretos.\\n- Nunca digas que eres una IA, Claude o Anthropic.\\n- El objetivo final siempre es conseguir que el paciente agende una consulta gratuita.\",\n  \"messages\": {{ JSON.stringify($json.messages) }}\n}",
+        "options": {}
+      },
+      "id": "deb95a18-9553-4633-98e7-820fdb6a6d14",
+      "name": "🤖 Claude API — Genera respuesta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1696,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign_response",
+              "name": "respuesta_claude",
+              "value": "={{ $json.texto_final }}",
+              "type": "string"
+            },
+            {
+              "id": "assign_phone2",
+              "name": "telefono",
+              "value": "={{ $('📋 Set — Extrae datos del mensaje').item.json.telefono }}",
+              "type": "string"
+            },
+            {
+              "id": "assign_message2",
+              "name": "mensaje_usuario",
+              "value": "={{ $('📋 Set — Extrae datos del mensaje').item.json.mensaje_usuario }}",
+              "type": "string"
+            },
+            {
+              "id": "assign_ts2",
+              "name": "timestamp",
+              "value": "={{ $('📋 Set — Extrae datos del mensaje').item.json.timestamp }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "556f595a-8691-4a26-b5fe-a6b88dd050d1",
+      "name": "📋 Set — Prepara datos para guardar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1424,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/1179285025271722/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{ $('📋 Set — Extrae datos del mensaje').item.json.telefono }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": {{ JSON.stringify($json.respuesta_claude) }}\n  }\n}",
+        "options": {}
+      },
+      "id": "339c7cbd-dad9-4faf-9a06-baf158b7be4b",
+      "name": "📱 Meta API — Envía respuesta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1216,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Historial",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefono": "={{ $('📋 Set — Prepara datos para guardar').item.json.telefono }}",
+            "rol": "user",
+            "contenido": "={{ $('📋 Set — Prepara datos para guardar').item.json.mensaje_usuario }}",
+            "timestamp": "={{ $('📋 Set — Prepara datos para guardar').item.json.timestamp }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rol",
+              "displayName": "rol",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contenido",
+              "displayName": "contenido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "8f38ebd9-f315-4596-bf11-86915ee5fcc1",
+      "name": "📊 Sheets — Guarda mensaje usuario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -960,
+        944
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TZHSWYgb1oQEIYtk",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Historial",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefono": "={{ $('📋 Set — Prepara datos para guardar').item.json.telefono }}",
+            "rol": "assistant",
+            "contenido": "={{ $('📋 Set — Prepara datos para guardar').item.json.respuesta_claude }}",
+            "timestamp": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rol",
+              "displayName": "rol",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contenido",
+              "displayName": "contenido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f2632198-75a6-4ac8-bd26-ba24db0d6434",
+      "name": "📊 Sheets — Guarda respuesta bot",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -640,
+        928
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TZHSWYgb1oQEIYtk",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst textoCompleto = (item.content || []).find(c => c.type === 'text')?.text || '';\nconst marker = 'CITA_JSON:';\nconst idx = textoCompleto.indexOf(marker);\n\nlet texto_final = textoCompleto;\nlet cita = null;\n\nif (idx !== -1) {\n  texto_final = textoCompleto.slice(0, idx).trim();\n  const jsonPart = textoCompleto.slice(idx + marker.length).trim();\n  try { cita = JSON.parse(jsonPart); } catch (e) { cita = null; }\n}\n\nreturn [{ json: { texto_final, cita, tiene_cita: !!cita } }];"
+      },
+      "id": "05e8a620-d7a5-4237-aa5b-4490b666b70d",
+      "name": "🔧 Code — Detecta cita en respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1152,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check_tiene_cita",
+              "leftValue": "={{ $json.tiene_cita }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2693c696-fb4b-4367-98fe-dbc554f271d8",
+      "name": "🔀 IF — ¿Tiene datos de cita?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -944,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "bd64680182e20056af184b1e4c074410f78201bb01e0b0c5939fbd46ed31a76c@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Calendario Alejandro"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $json.cita.fecha }}T00:00:00",
+          "timeMax": "={{ $json.cita.fecha }}T23:59:59"
+        }
+      },
+      "id": "6b969df3-5060-4122-8e10-d0a75c2edf44",
+      "name": "📅 Google Calendar — Eventos del día",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        288
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "5EHsafKLNVYF8aXV",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const eventos = $input.all().map(i => i.json);\nconst cita = $('🔧 Code — Detecta cita en respuesta').item.json.cita;\nconst DURACION_MIN = 45;\nconst MARGEN_MIN = 15;\nconst ZONA = 'Europe/Madrid';\n\nfunction horarioClinica(weekday) {\n  // weekday: 1=Lunes ... 7=Domingo\n  if (weekday >= 1 && weekday <= 4) return { abre: 10, cierra: 20 };\n  if (weekday === 5) return { abre: 10, cierra: 14 };\n  return null; // cerrado sábado y domingo\n}\n\nconst inicioSolicitado = DateTime.fromISO(`${cita.fecha}T${cita.hora}:00`, { zone: ZONA });\nconst finSolicitado = inicioSolicitado.plus({ minutes: DURACION_MIN });\n\nconst horario = horarioClinica(inicioSolicitado.weekday);\nconst horaInicio = inicioSolicitado.hour + inicioSolicitado.minute / 60;\nconst horaFinNum = finSolicitado.hour + finSolicitado.minute / 60;\nconst fueraDeHorario = !horario || horaInicio < horario.abre || horaFinNum > horario.cierra;\n\nlet ocupado = false;\nif (!fueraDeHorario) {\n  for (const ev of eventos) {\n    const start = ev.start && (ev.start.dateTime || ev.start.date);\n    const end = ev.end && (ev.end.dateTime || ev.end.date);\n    if (!start || !end) continue;\n    const evInicio = DateTime.fromISO(start).minus({ minutes: MARGEN_MIN });\n    const evFin = DateTime.fromISO(end).plus({ minutes: MARGEN_MIN });\n    if (inicioSolicitado < evFin && finSolicitado > evInicio) { ocupado = true; break; }\n  }\n}\n\nconst alternativas = [];\nif (!fueraDeHorario && ocupado) {\n  const [y, m, d] = cita.fecha.split('-').map(Number);\n  for (let h = horario.abre; h < horario.cierra && alternativas.length < 3; h++) {\n    for (const min of [0, 45]) {\n      if (alternativas.length >= 3) break;\n      const candidato = DateTime.fromObject({ year: y, month: m, day: d, hour: h, minute: min }, { zone: ZONA });\n      const candidatoFin = candidato.plus({ minutes: DURACION_MIN });\n      if (candidatoFin.hour + candidatoFin.minute / 60 > horario.cierra) continue;\n      const choca = eventos.some(ev => {\n        const start = ev.start && (ev.start.dateTime || ev.start.date);\n        const end = ev.end && (ev.end.dateTime || ev.end.date);\n        if (!start || !end) return false;\n        const evInicio = DateTime.fromISO(start).minus({ minutes: MARGEN_MIN });\n        const evFin = DateTime.fromISO(end).plus({ minutes: MARGEN_MIN });\n        return candidato < evFin && candidatoFin > evInicio;\n      });\n      if (!choca) alternativas.push(candidato.toFormat('HH:mm'));\n    }\n  }\n}\n\nconst hora_fin = finSolicitado.toFormat('HH:mm');\nconst motivo = fueraDeHorario ? 'fuera_de_horario' : (ocupado ? 'ocupado' : null);\n\nreturn [{ json: { ...cita, libre: !fueraDeHorario && !ocupado, alternativas, hora_fin, motivo } }];"
+      },
+      "id": "33e840f7-051c-4a46-91a3-c05628a20af3",
+      "name": "🔧 Code — ¿Hueco libre?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check_libre",
+              "leftValue": "={{ $json.libre }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0bb10a4c-089f-4cb0-a1b6-0a35fb4a4a5c",
+      "name": "🔀 IF — ¿Hueco libre?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "bd64680182e20056af184b1e4c074410f78201bb01e0b0c5939fbd46ed31a76c@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Calendario Alejandro"
+        },
+        "start": "={{ $json.fecha }}T{{ $json.hora }}:00",
+        "end": "={{ $json.fecha }}T{{ $json.hora_fin }}:00",
+        "additionalFields": {
+          "attendees": [
+            "={{ $json.email }}"
+          ],
+          "description": "=Tel: {{ $('📋 Set — Extrae datos del mensaje').item.json.telefono }} | Reservado vía WhatsApp bot",
+          "summary": "=Cita: {{ $json.nombre }} - {{ $json.tratamiento }}"
+        }
+      },
+      "id": "269a8c0d-855c-4c56-b846-006c7e767a82",
+      "name": "📅 Google Calendar — Crear evento",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        -48,
+        256
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "5EHsafKLNVYF8aXV",
+          "name": "Google Calendar account"
+        }
+      },
+      "notes": "Revisa que 'end' sume la duración real de la cita (por defecto se asume 45 min en el cálculo de disponibilidad; ajusta si tu n8n requiere un end distinto al start)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $('🔧 Code — ¿Hueco libre?').item.json;\nconst texto_final = `¡Listo! ✅ Tu cita para ${c.tratamiento} ha quedado confirmada el ${c.fecha} a las ${c.hora}. Te llegará confirmación a ${c.email}. ¡Nos vemos en Clínica Sarabia!`;\nreturn [{ json: { texto_final } }];"
+      },
+      "id": "f0a16cef-a0b9-4c48-a59f-edbcc4dbd84c",
+      "name": "🔧 Code — Mensaje de confirmación",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $json;\nconst HORARIO_TEXTO = 'Lunes a jueves de 10:00 a 20:00, viernes de 10:00 a 14:00. Cerrado sábados y domingos.';\n\nlet texto_final;\nif (c.motivo === 'fuera_de_horario') {\n  texto_final = `Ese horario está fuera de nuestro horario de atención 😕 Abrimos: ${HORARIO_TEXTO} ¿Qué día y hora dentro de ese horario te vendría bien?`;\n} else {\n  const alt = (c.alternativas || []).join(', ');\n  texto_final = alt\n    ? `Ese horario ya está ocupado 😕 Tengo libres estos horarios ese mismo día: ${alt}. ¿Cuál te viene mejor?`\n    : `Ese horario ya está ocupado y no quedan huecos libres ese día 😕 ¿Podrías decirme otro día que te venga bien?`;\n}\nreturn [{ json: { ...c, texto_final } }];"
+      },
+      "id": "81114cdc-4225-4c34-88ee-b05cf157851f",
+      "name": "🔧 Code — Mensaje de alternativas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1ZC_m2CWD-GHl_GoRlxMXlk-iPqBS9niN-kHaRunVov0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Historial",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "telefono",
+              "lookupValue": "={{ $json.telefono }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "253f3d06-bce9-4b87-8229-8dfaab5ca049",
+      "name": "📊 Google Sheets — Lee historial",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        0,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TZHSWYgb1oQEIYtk",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Activa 'Always Output Data' en Settings del nodo para que no se pare cuando un número no tiene historial previo."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "📨 Webhook — Recibe mensaje WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "🔍 Filtro — ¿Es mensaje de texto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Webhook — Verificación Meta": {
+      "main": [
+        [
+          {
+            "node": "✅ Responde challenge de Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Filtro — ¿Es mensaje de texto?": {
+      "main": [
+        [
+          {
+            "node": "📋 Set — Extrae datos del mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "✅ Responde 200 (no es texto)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Set — Extrae datos del mensaje": {
+      "main": [
+        [
+          {
+            "node": "✅ Responde 200 OK a Meta (inmediato)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Responde 200 OK a Meta (inmediato)": {
+      "main": [
+        [
+          {
+            "node": "📊 Google Sheets — Lee historial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Code — Construye historial para Claude": {
+      "main": [
+        [
+          {
+            "node": "🤖 Claude API — Genera respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Claude API — Genera respuesta": {
+      "main": [
+        [
+          {
+            "node": "🔧 Code — Detecta cita en respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Set — Prepara datos para guardar": {
+      "main": [
+        [
+          {
+            "node": "📱 Meta API — Envía respuesta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 Meta API — Envía respuesta WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "📊 Sheets — Guarda mensaje usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Sheets — Guarda mensaje usuario": {
+      "main": [
+        [
+          {
+            "node": "📊 Sheets — Guarda respuesta bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Code — Detecta cita en respuesta": {
+      "main": [
+        [
+          {
+            "node": "🔀 IF — ¿Tiene datos de cita?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 IF — ¿Tiene datos de cita?": {
+      "main": [
+        [
+          {
+            "node": "📅 Google Calendar — Eventos del día",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📋 Set — Prepara datos para guardar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Google Calendar — Eventos del día": {
+      "main": [
+        [
+          {
+            "node": "🔧 Code — ¿Hueco libre?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Code — ¿Hueco libre?": {
+      "main": [
+        [
+          {
+            "node": "🔀 IF — ¿Hueco libre?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 IF — ¿Hueco libre?": {
+      "main": [
+        [
+          {
+            "node": "📅 Google Calendar — Crear evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔧 Code — Mensaje de alternativas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Google Calendar — Crear evento": {
+      "main": [
+        [
+          {
+            "node": "🔧 Code — Mensaje de confirmación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Code — Mensaje de confirmación": {
+      "main": [
+        [
+          {
+            "node": "📋 Set — Prepara datos para guardar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Code — Mensaje de alternativas": {
+      "main": [
+        [
+          {
+            "node": "📋 Set — Prepara datos para guardar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Google Sheets — Lee historial": {
+      "main": [
+        [
+          {
+            "node": "🔧 Code — Construye historial para Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8fbd94dc-f196-47d0-b54b-ce0fefa5746d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "49294b231365eabe54104da74cda5e810f41fc6d7b53a6f711b156124f05c7c8"
+  },
+  "id": "QREN8LpbkOl6a4Wi",
+  "tags": [
+    {
+      "updatedAt": "2026-07-01T19:44:43.224Z",
+      "createdAt": "2026-07-01T19:44:43.224Z",
+      "id": "Ezb8RowkQpACO49e",
+      "name": "demo-clinica-sarabia"
+    }
+  ]
+}
