@@ -38,4 +38,4 @@ Este proyecto utiliza la API oficial de Meta para WhatsApp Business, evitando so
  
 ## Estado
  
-Proyecto en producción, en uso por un cliente real del sector salud.
+Proyecto en desarollo.
